@@ -17,8 +17,10 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(): void
+    public function boot()
     {
-        //
+        $paths = glob(database_path('migrations/*'), GLOB_ONLYDIR);
+
+        $this->loadMigrationsFrom(array_merge([database_path('migrations')], $paths));
     }
 }
