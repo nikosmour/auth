@@ -17,7 +17,7 @@ class UserSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    public function __construct(protected int $count = 50)
+    public function __construct(protected int $count = 1000)
     {
     }
 
@@ -33,51 +33,52 @@ class UserSeeder extends Seeder
         $currentDay = Carbon::now();
 
         // Initialize email counters dynamically from the database
-        $emailCounters = array_fill_keys(array_map(fn($status) => strtolower($status->name), UserStatusEnum::cases()), 1);
-
+        $emailCounters = collect(UserStatusEnum::cases())
+            ->map(fn($status) => strtolower($status->name))
+            ->sort()
+            ->values()
+            ->mapWithKeys(fn($name, $index) => [$name => ($index + 1)*1000000])
+            ->toArray();
         foreach (UserStatusEnum::cases() as $status) {
             $lowercaseKey = strtolower($status->name);
-            $latestEmail= null;
             if ($status->canAny([
                 UserAbilityEnum::CARD_OWNERSHIP,
                 UserAbilityEnum::COUPON_OWNERSHIP
             ])) {
-                $latestEmail = Academic::where('status', $status->value)
+                $emailCounters[$lowercaseKey] = Academic::where('status', $status->value)
                     ->where('email', 'like', $lowercaseKey . '%')
-                    ->orderByDesc('email')
-                    ->value('email');
+                    ->orderByDesc('a_m')
+                    ->value('a_m') ?? $emailCounters[$lowercaseKey]  ;
             } elseif ($status->can(UserAbilityEnum::COUPON_SELL)) {
-                $latestEmail = CouponStaff::where('status', $status->value)
+                $emailCounters[$lowercaseKey] = CouponStaff::where('status', $status->value)
                     ->where('email', 'like', $lowercaseKey . '%')
-                    ->orderByDesc('email')
-                    ->value('email');
+                    ->orderByDesc('id')
+                    ->value('id') ??  0;
             } elseif ($status->can(UserAbilityEnum::CARD_APPLICATION_CHECK)) {
-                $latestEmail = CardApplicationStaff::where('status', $status->value)
+                $emailCounters[$lowercaseKey] = CardApplicationStaff::where('status', $status->value)
                     ->where('email', 'like', $lowercaseKey . '%')
-                    ->orderByDesc('email')
-                    ->value('email');
+                    ->orderByDesc('id')
+                    ->value('id') ?? 0;
             } elseif ($status->can(UserAbilityEnum::ENTRY_CHECK)) {
-                $latestEmail = EntryStaff::where('status', $status->value)
+                $emailCounters[$lowercaseKey] = EntryStaff::where('status', $status->value)
                     ->where('email', 'like', $lowercaseKey . '%')
-                    ->orderByDesc('email')
-                    ->value('email');
+                    ->orderByDesc('id')
+                    ->value('id') ?? 0;
            }
-            if ($latestEmail && preg_match('/\d+/', $latestEmail, $matches)) {
-                $emailCounters[$lowercaseKey] = (int)$matches[0] + 1;
-            }
         }
 
+
         // Helper to generate unique email
-        $generateEmail = function ($statusKey) use (&$emailCounters) {
-            $lowercaseKey = strtolower($statusKey);
+        $generateEmail = function ($lowercaseKey) use (&$emailCounters) {
             $email = "{$lowercaseKey}{$emailCounters[$lowercaseKey]}@example.com";
-            $emailCounters[$lowercaseKey]++;
             return $email;
         };
 
         for ($i = $this->count; $i > 0; $i--) {
             $user_status = collect(UserStatusEnum::cases())->random();
-            $email = $generateEmail($user_status->name);
+            $lowercaseKey= strtolower($user_status->name);
+            $emailCounters[$lowercaseKey]++;
+            $email = $generateEmail($lowercaseKey);
 
             if ($user_status->canAny([
                 UserAbilityEnum::CARD_OWNERSHIP,
@@ -85,7 +86,9 @@ class UserSeeder extends Seeder
             ])) {
                 $academic = Academic::factory()->create([
                     'status' => $user_status->value,
-                    'email' => $email
+                    'email' => $email,
+                    'a_m'=>$emailCounters[$lowercaseKey],
+                    'academic_id'=>$emailCounters[$lowercaseKey]+2*10**15 ,
                 ]);
 
                 if ($user_status->can(UserAbilityEnum::CARD_OWNERSHIP)) {

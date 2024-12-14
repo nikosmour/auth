@@ -19,7 +19,7 @@ class CardApplicantSeeder extends CreatedAtMoreThanSeeder
      */
     public function run()
     {
-        $cardApplicants = CardApplicant::whereDoesntHave('department')->where('created_at', '>', $this->createdAtMoreThan)->cursor();
+        $cardApplicants = CardApplicant::whereDoesntHave('departmentRelation')->where('created_at', '>', $this->createdAtMoreThan)->select((new CardApplicant())->getKeyName())->cursor();
         $departments = Department::all();
         foreach ($cardApplicants as $cardApplicant) {
             Address::factory()->permanent()->for($cardApplicant)->create();
