@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enum\CardStatusEnum;
 use App\Enum\UserAbilityEnum;
 use App\Enum\UserStatusEnum;
 use App\Models\Academic;
@@ -10,15 +11,17 @@ use App\Models\CardApplicationStaff;
 use App\Models\CouponStaff;
 use App\Models\EntryStaff;
 use Carbon\Carbon;
+use Database\Seeders\Classes\UserSeederPreparation;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
-class UserSeeder extends Seeder
+class UserSeeder extends UserSeederPreparation
 {
     use WithoutModelEvents;
 
-    public function __construct(protected int $count = 1000)
+    public function __construct( $count = 50)
     {
+        parent::__construct($count);
     }
 
     /**
@@ -28,73 +31,61 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        echo str_pad('creating new users', 120, '.', STR_PAD_RIGHT);
-        $startTime = microtime(true);
-        $currentDay = Carbon::now();
+        $totalCount=$this->count;
+        $options=count($this->emailCounters);
+        $optionsTotal=count(CardStatusEnum::enumByName());
+        $this->count= intdiv($this->count , $optionsTotal)*$options;
+        $AcademicCount=$totalCount-$this->count;
+        $this->commonRun([
+            [
+              "class"=>DepartmentSeeder::class,
+              "count"=>10,
+            ],
+            [
+                "class"=>AcademicSeeder::class,
+                "count"=>$AcademicCount,
+            ],
 
-        // Initialize email counters dynamically from the database
-        $emailCounters = collect(UserStatusEnum::cases())
-            ->map(fn($status) => strtolower($status->name))
-            ->sort()
-            ->values()
-            ->mapWithKeys(fn($name, $index) => [$name => ($index + 1)*1000000])
-            ->toArray();
-        foreach (UserStatusEnum::cases() as $status) {
-            $lowercaseKey = strtolower($status->name);
-            if ($status->canAny([
-                UserAbilityEnum::CARD_OWNERSHIP,
-                UserAbilityEnum::COUPON_OWNERSHIP
-            ])) {
-                $emailCounters[$lowercaseKey] = Academic::where('status', $status->value)
-                    ->where('email', 'like', $lowercaseKey . '%')
-                    ->orderByDesc('a_m')
-                    ->value('a_m') ?? $emailCounters[$lowercaseKey]  ;
-            } elseif ($status->can(UserAbilityEnum::COUPON_SELL)) {
-                $emailCounters[$lowercaseKey] = CouponStaff::where('status', $status->value)
-                    ->where('email', 'like', $lowercaseKey . '%')
-                    ->orderByDesc('id')
-                    ->value('id') ??  0;
-            } elseif ($status->can(UserAbilityEnum::CARD_APPLICATION_CHECK)) {
-                $emailCounters[$lowercaseKey] = CardApplicationStaff::where('status', $status->value)
-                    ->where('email', 'like', $lowercaseKey . '%')
-                    ->orderByDesc('id')
-                    ->value('id') ?? 0;
-            } elseif ($status->can(UserAbilityEnum::ENTRY_CHECK)) {
-                $emailCounters[$lowercaseKey] = EntryStaff::where('status', $status->value)
-                    ->where('email', 'like', $lowercaseKey . '%')
-                    ->orderByDesc('id')
-                    ->value('id') ?? 0;
-           }
+        ]);
+    }
+    protected function whenInit($status): bool{
+        return !$this->isAcademic($status);
+    }
+
+
+    protected function initCounters($status):void
+    {
+        $key=$status->name;
+        $lowercaseKey=strtolower($key);
+        if ($status->can(UserAbilityEnum::COUPON_SELL)) {
+        $this->emailCounters[$key] = CouponStaff::where('status', $status->value)
+            ->where('email', 'like', $lowercaseKey . '%')
+            ->orderByDesc('id')
+            ->value('id') ??  0;
+        } elseif ($status->can(UserAbilityEnum::CARD_APPLICATION_CHECK)) {
+        $this->emailCounters[$key] = CardApplicationStaff::where('status', $status->value)
+            ->where('email', 'like', $lowercaseKey . '%')
+            ->orderByDesc('id')
+            ->value('id') ?? 0;
+        } elseif ($status->can(UserAbilityEnum::ENTRY_CHECK)) {
+        $this->emailCounters[$key] = EntryStaff::where('status', $status->value)
+            ->where('email', 'like', $lowercaseKey . '%')
+            ->orderByDesc('id')
+            ->value('id') ?? 0;
         }
+    }
 
+    public function createUser(int $count, UserStatusEnum|null $users_status = null): void
+    {
+        $keys=array_keys($this->emailCounters);
+        $numberOfStatus=count($keys);
+        for ($i = $count; $i > 0; $i--) {
+            $user_status=$users_status ?? UserStatusEnum::enumByName()[$keys[$i % $numberOfStatus]];
+            $status=$user_status->name;
+            $this->emailCounters[$status]++;
+            $email = $this->generateEmail($status);
 
-        // Helper to generate unique email
-        $generateEmail = function ($lowercaseKey) use (&$emailCounters) {
-            $email = "{$lowercaseKey}{$emailCounters[$lowercaseKey]}@example.com";
-            return $email;
-        };
-
-        for ($i = $this->count; $i > 0; $i--) {
-            $user_status = collect(UserStatusEnum::cases())->random();
-            $lowercaseKey= strtolower($user_status->name);
-            $emailCounters[$lowercaseKey]++;
-            $email = $generateEmail($lowercaseKey);
-
-            if ($user_status->canAny([
-                UserAbilityEnum::CARD_OWNERSHIP,
-                UserAbilityEnum::COUPON_OWNERSHIP
-            ])) {
-                $academic = Academic::factory()->create([
-                    'status' => $user_status->value,
-                    'email' => $email,
-                    'a_m'=>$emailCounters[$lowercaseKey],
-                    'academic_id'=>$emailCounters[$lowercaseKey]+2*10**15 ,
-                ]);
-
-                if ($user_status->can(UserAbilityEnum::CARD_OWNERSHIP)) {
-                    CardApplicant::factory()->for($academic)->create();
-                }
-            } elseif ($user_status->can(UserAbilityEnum::COUPON_SELL)) {
+            if ($user_status->can(UserAbilityEnum::COUPON_SELL)) {
                 CouponStaff::factory()->create([
                     'status' => $user_status->value,
                     'email' => $email
@@ -110,26 +101,6 @@ class UserSeeder extends Seeder
                     'email' => $email
                 ]);
             }
-        }
-
-        $endTime = microtime(true);
-        $elapsedTime = $endTime - $startTime;
-        echo str_pad(number_format($elapsedTime * 1000, 2), 7, ' ', STR_PAD_LEFT) . 'ms';
-        echo "\033[0;32m" . ' DONE' . "\033[0m" . PHP_EOL;
-
-        $seeders = [
-            DepartmentSeeder::class,
-            CardApplicantSeeder::class,
-        ];
-
-        foreach ($seeders as $seeder) {
-            echo str_pad(class_basename($seeder), 120, '.', STR_PAD_RIGHT);
-            $startTime = $endTime;
-            $this->call($seeder, ['createdAtMoreThan' => $currentDay]);
-            $endTime = microtime(true);
-            $elapsedTime = $endTime - $startTime;
-            echo str_pad(number_format($elapsedTime * 1000, 2), 7, ' ', STR_PAD_LEFT) . 'ms';
-            echo "\033[0;32m" . ' DONE' . "\033[0m" . PHP_EOL;
         }
     }
 }
