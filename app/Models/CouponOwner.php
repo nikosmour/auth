@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class CouponOwner extends Model
 {
-    use HasFactory, CouponOwnerTrait;
+    use HasFactory;
 
     public $incrementing = false;
     protected $primaryKey = 'academic_id';
