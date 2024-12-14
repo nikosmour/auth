@@ -13,7 +13,7 @@ use Illuminate\Database\Seeder;
 class AcademicSeeder extends UserSeederPreparation
 {
 
-    public function __construct( $count = 50)
+    public function __construct( $count = 5)
     {
         parent::__construct($count);
     }
@@ -26,10 +26,8 @@ class AcademicSeeder extends UserSeederPreparation
     public function run(): void
     {
         $this->commonRun([
-            [
-                "class"=>CardApplicantSeeder::class,
-                "count"=>null,
-                ],
+            ["class"=>CardApplicantSeeder::class,
+            "parameters"=>[]]
         ]);
     }
 

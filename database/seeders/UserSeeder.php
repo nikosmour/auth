@@ -5,21 +5,17 @@ namespace Database\Seeders;
 use App\Enum\CardStatusEnum;
 use App\Enum\UserAbilityEnum;
 use App\Enum\UserStatusEnum;
-use App\Models\Academic;
-use App\Models\CardApplicant;
 use App\Models\CardApplicationStaff;
 use App\Models\CouponStaff;
 use App\Models\EntryStaff;
-use Carbon\Carbon;
 use Database\Seeders\Classes\UserSeederPreparation;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
 
 class UserSeeder extends UserSeederPreparation
 {
     use WithoutModelEvents;
 
-    public function __construct( $count = 50)
+    public function __construct( $count = 1000)
     {
         parent::__construct($count);
     }
@@ -34,16 +30,21 @@ class UserSeeder extends UserSeederPreparation
         $totalCount=$this->count;
         $options=count($this->emailCounters);
         $optionsTotal=count(CardStatusEnum::enumByName());
-        $this->count= intdiv($this->count , $optionsTotal)*$options;
+        $staffCount=count(EntryStaff::all());
+        $countPerStaff= intdiv($this->count , $optionsTotal);
+        if ($staffCount>9)
+            $countPerStaff=0;
+        else
+            $countPerStaff= ($staffCount+  $countPerStaff>10) ? 10 : $countPerStaff;
+        $this->count=$countPerStaff*$options;
         $AcademicCount=$totalCount-$this->count;
+        echo $totalCount;
+        echo  $this->count;
+        echo $AcademicCount;
         $this->commonRun([
             [
-              "class"=>DepartmentSeeder::class,
-              "count"=>10,
-            ],
-            [
                 "class"=>AcademicSeeder::class,
-                "count"=>$AcademicCount,
+                "parameters"=>[$AcademicCount],
             ],
 
         ]);

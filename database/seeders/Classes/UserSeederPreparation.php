@@ -15,10 +15,11 @@ abstract class UserSeederPreparation extends Seeder
 {
     use WithoutModelEvents;
     protected array $emailCounters;
+    protected int $count;
 
-    public function __construct(protected int $count = 10)
+    public function __construct($count = 10)
     {
-
+        $this->count = $count;
         $this->emailCounters = collect(UserStatusEnum::cases())
             ->map(fn($status) => $status->name)
             ->sort()
@@ -66,7 +67,8 @@ abstract class UserSeederPreparation extends Seeder
         foreach ($seeders as $seeder) {
             echo str_pad(class_basename($seeder["class"]), 120, '.', STR_PAD_RIGHT);
             $startTime = $endTime;
-            $this->call($seeder['class'], ['createdAtMoreThan' => $currentDay, 'count' => $seeder["count"]]);
+            (new $seeder['class'](...$seeder['parameters']))->run();
+//            $this->callWith($seeder['class'], [ 'count' => $seeder["count"]]);
             $endTime = microtime(true);
             $elapsedTime = $endTime - $startTime;
             echo str_pad(number_format($elapsedTime * 1000, 2), 7, ' ', STR_PAD_LEFT) . 'ms';
